@@ -18,6 +18,8 @@ Running this workshop should not incur any cost on AWS if you haven't exceeded y
 - `terraform validate`: validate code
 - `terraform plan`: see infrastructure changes
 - `terraform apply`: apply changes (when answer `yes`)
+- `terraform show`: describe current state of all resources
+- `terraform destroy`: destroy everything (when answer `yes`)
 
 ## Exercises
 The following is a series of exercises that should be executed in order.
@@ -89,16 +91,34 @@ The following is a series of exercises that should be executed in order.
   ```
   This non-destructive change should modify the instance in-place.
 
-- What about destructive change? Let's use another AMI
+- What about destructive change? Let's install LAMP stack on our instance. First add an install script `install_lamp.sh`
   ```
-  ami = "ami-0c00935023a833df1"
+  #!/bin/bash
+  yum update -y
+  amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+  yum install -y httpd mariadb-server
+  systemctl start httpd
+  systemctl enable httpd
+  usermod -a -G apache ec2-user
+  chown -R ec2-user:apache /var/www
+  chmod 2775 /var/www
+  find /var/www -type d -exec chmod 2775 {} \;
+  find /var/www -type f -exec chmod 0664 {} \;
+  echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
   ```
-  This image contains a free WordPress installation. We need to [subscribe](https://aws.amazon.com/marketplace/pp/prodview-bzstv3wbn5wkq) before we can use it. Don't worry it's free.
+  This script will install PHP, MariaDB, and Apache web server. It also creates a sample php page.
+
+- Then add the following to `aws_instance` block in `ec2.tf` 
+  ```
+  user_data = file("install_lamp.sh")
+  ```
+  `user_data` is instruction that runs when the EC2 is created. This uses HCL's `file` function to read and assign file content to `user_data`.
 
 - Apply the change
   ```
   terraform apply
   ```
+  Look at the web console, your instance should be replaced. Side note: you can also grab an AMI with the LAMP stack preinstalled from the Marketplace.
 
 - Copy the instance's public IP from the web console or by running
   ```
